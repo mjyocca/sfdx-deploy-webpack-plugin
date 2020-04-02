@@ -1,0 +1,4 @@
+#node modules bin
+node_modules
+# dist folder
+build

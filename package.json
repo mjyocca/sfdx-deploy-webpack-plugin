@@ -1,0 +1,28 @@
+{
+  "name": "sfdx-deploy-webpack-plugin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/index.js",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "build": "babel src -d build"
+  },
+  "files": [
+    "build",
+    "schema.json"
+  ],
+  "dependencies": {
+    "node-watch": "^0.6.3",
+    "sfdx-node": "^2.1.0"
+  },
+  "peerDependencies": {
+    "webpack": "^4.0.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.8.3",
+    "@babel/core": "^7.8.3",
+    "@babel/preset-env": "^7.8.3",
+    "babel-polyfill": "^6.26.0"
+  }
+}
