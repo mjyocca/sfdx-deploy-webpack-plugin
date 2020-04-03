@@ -1,7 +1,10 @@
-const { spawn } = require("child_process");
-const platform = require("os").platform();
+import { spawn } from 'child_process';
+import * as os from 'os';
 
-module.exports = (cmd, args, options = {}) => {
+const platform = os.platform();
+
+const execCmd = (cmd, args, options:any = {}) => {
+  
   if (platform == "win32") options.shell = true;
 
   const child = spawn(cmd, args, options);
@@ -27,3 +30,4 @@ module.exports = (cmd, args, options = {}) => {
 }
 
 
+export default execCmd;
