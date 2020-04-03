@@ -1,0 +1,6 @@
+/**
+    // "build:cjs": "tsc --module commonjs --target es5 --outDir build/cjs",
+    // "build:esm": "tsc --module esnext --target es5 --outDir build/esm",
+    // "move:esm": "mv build/esm/index.js build/esm/index.mjs",
+    // "move:cjs": "mv build/cjs/index.js build/cjs/index.cjs",
+*/

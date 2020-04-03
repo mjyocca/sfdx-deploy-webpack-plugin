@@ -1,13 +1,13 @@
-const fs = require("fs");
-const util = require("util")
-const path = require("path")
-const EventEmitter = require("events");
-const watch = require("node-watch");
-const sfdx = require("sfdx-node/parallel");
-const execCmd = require("./execCmd");
+import * as fs from 'fs';
+import * as util from 'util';
+import * as path from "path";
+import { EventEmitter } from 'events';
+import watch from 'node-watch';
+import sfdx from 'sfdx-node/parallel';
+import execCmd from "./execCmd";
+
 
 const readFile = util.promisify(fs.readFile)
-
 
 const DELAY = 0;
 const sfdxProjectPath = "./force-app/main/default/";
@@ -55,8 +55,11 @@ const normalizeOrgInfo = ({scratchOrgs, nonScratchOrgs}) => {
     }
 }
 
-class SfdxDeployPlugin {
-    constructor(options) {
+export default class SfdxDeployPlugin {
+    options: any;
+    webpackWatch: boolean = false;
+
+    constructor(options: any) {
         this.options = options;
     }
 
@@ -67,7 +70,7 @@ class SfdxDeployPlugin {
 
         const sfdxArgs = [sfdxCommand];
         if(!defaultOrg.isScratchOrg) {
-            const argsFiles = Array.from(deployFiles).map((file) => path.join(...file.split(path.sep))).join(",");
+            const argsFiles = Array.from(deployFiles).map((file: string) => path.join(...file.split(path.sep))).join(",");
             sfdxArgs.push(`-p ${argsFiles}`);
         }
         await execCmd("sfdx", sfdxArgs)
@@ -115,5 +118,3 @@ class SfdxDeployPlugin {
         });
     }
 }
-
-module.exports = SfdxDeployPlugin;
