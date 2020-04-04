@@ -2,17 +2,17 @@
   "name": "sfdx-deploy-webpack-plugin",
   "version": "1.0.0",
   "description": "",
-  "type": "module",
   "main": "./build/index.cjs",
+  "types": "build/index.d.ts",
+  "module": "./build/index.mjs",
   "exports": {
     "import": "./build/index.mjs",
     "require": "./build/index.cjs"
   },
   "author": "Michael Yocca @mjyocca",
-  "license": "ISC",
+  "license": "MIT",
   "scripts": {
-    "build:v1": "tsc --module commonjs --target es5 --outDir build/ && node ./build-scripts/build.js",
-    "build": "npm run clean && npm run build:v1",
+    "build": "tsc && node ./build-scripts/build.js",
     "clean": "",
     "start": "tsc --w"
   },
@@ -33,7 +33,10 @@
     "@babel/preset-env": "^7.8.3",
     "@types/node": "^13.11.0",
     "@types/webpack": "^4.41.10",
+    "@typescript-eslint/eslint-plugin": "^2.26.0",
+    "@typescript-eslint/parser": "^2.26.0",
     "babel-polyfill": "^6.26.0",
+    "eslint": "^6.8.0",
     "typescript": "^3.8.3"
   }
 }

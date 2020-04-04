@@ -1,6 +1,5 @@
 {
-    "type": "object",
-    "properties": {
-    },
-    "additionalProperties": false
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
 }
