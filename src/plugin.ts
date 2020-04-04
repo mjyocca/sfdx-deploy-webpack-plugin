@@ -48,20 +48,39 @@ export default class SfdxDeployPlugin {
     const { defaultOrg } = normalizeOrgInfo(sfdxOrgs);
     const sfdxCommand = defaultOrg.isScratchOrg ? pushCmd : deployCmd;
 
+    let argFiles;
     const sfdxArgs = [sfdxCommand];
     if (!defaultOrg.isScratchOrg) {
-      const argsFiles = Array.from(deployFiles)
-        .map((file: string) => path.join(...file.split(path.sep)))
+      argFiles = Array.from(deployFiles)
+        .map((file: string): string => {
+          // let pathSep = file.split(path.sep);
+          // if (pathSep.includes('staticresources')) {
+          //   return './force-app/main/default/staticresources/dist';
+          // } else {
+          //   return path.join(...file.split(path.sep));
+          // }
+          return path.join(...file.split(path.sep));
+        })
         .join(',');
-      sfdxArgs.push(`-p ${argsFiles}`);
+      sfdxArgs.push(`-p ${argFiles}`);
     }
-    await execCmd('sfdx', sfdxArgs);
+    // console.log({ argFiles });
+    // await execCmd('sfdx', sfdxArgs);
+    const myRes = await sfdx.source.deploy({
+      _quiet: false,
+      sourcepath: argFiles,
+    });
+    console.log({ myRes });
     deployFiles.clear();
   }
 
   apply(compiler) {
     // create watcher for sfdx project
-    const watcher = watch(sfdxProjectPath, watchOptions, watchCallback);
+    const watcher = watch(
+      path.resolve(sfdxProjectPath),
+      watchOptions,
+      watchCallback
+    );
     // on deploy event, call deploy mthod
     deployEvent.on('sf__deploy', this.deploy);
     // add files change add to unique set
