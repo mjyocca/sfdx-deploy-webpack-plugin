@@ -1,12 +1,13 @@
 module.exports = {
-    parser: "@typescript-eslint/parser", // Specifies the ESLint parser
-    extends: [
-			"eslint:recommended",
-			"plugin:@typescript-eslint/eslint-recommended",
-      "plugin:@typescript-eslint/recommended" // Uses the recommended rules from the @typescript-eslint/eslint-plugin
-    ],
-    rules: {
-      // Place to specify ESLint rules. Can be used to overwrite rules specified from the extended configs
-      // e.g. "@typescript-eslint/explicit-function-return-type": "off",
-    }
-  };
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint'],
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/eslint-recommended',
+    'plugin:@typescript-eslint/recommended',
+  ],
+  rules: {
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/no-explicit-any': 'off',
+  },
+};

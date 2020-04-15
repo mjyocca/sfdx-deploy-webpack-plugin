@@ -1,123 +1,141 @@
-import * as fs from 'fs';
-import * as util from 'util';
 import * as path from 'path';
 import { EventEmitter } from 'events';
+import * as webpack from 'webpack';
 import watch from 'node-watch';
 import sfdx from 'sfdx-node/parallel';
-import execCmd from './execCmd';
-import { normalizeOrgInfo } from './helper';
-
-const readFile = util.promisify(fs.readFile);
-
-const DELAY = 0;
-const sfdxProjectPath = './force-app/main/default/';
-const deployCmd = `force:source:deploy`;
-const pushCmd = `force:source:push`;
-const deployEvent = new EventEmitter();
-const deployFiles = new Set();
-
-const watchOptions = {
-  recursive: true,
-  delay: DELAY,
-  filter: (f) => !/node_modules/.test(f),
-};
-
-const watchCallback = (evt, name) => {
-  console.log(`watch::: ${evt}: ${name}`);
-};
+import { normalizeOrgInfo, getSourcePath, addFile } from './helper';
+import { DeployOptions } from './types/plugin.types';
 
 export default class SfdxDeployPlugin {
-  options: any;
-  webpackWatch: boolean = false;
-  stopMonitoring: boolean = false;
+  private readonly PLUGIN_NAME = 'SfdxDeployPlugin';
+  private readonly DeployEvtName = 'sfdx__deploy';
+  private compiler: webpack.Compiler;
+  private watcher: any; /* ImprovedFSWatcher */
+  private deployFiles = new Set<string>();
+  private deployEvent = new EventEmitter();
+  private deployInterval: NodeJS.Timer;
+  private webpackWatch = false;
+  private closeWatcher = false;
 
-  constructor(options: any) {
-    this.options = options;
+  /* Public */
+  options: DeployOptions;
+  projectPath = './force-app/main/default/';
+  delay = 0;
+  log = false;
+
+  // sfdxArgs?: DeployOptions['SfdxArgs'];
+
+  // for v1 going to ignore options
+  constructor(options?: DeployOptions) {
+    this.options = options || ({} as DeployOptions);
   }
 
-  async watchDeploy() {
-    if (deployFiles.size > 0) {
-      deployEvent.emit('sf__deploy');
-    } else {
-      console.log('nothing to deploy: watchDeploy');
-    }
-  }
-
-  async deploy() {
-    const sfdxOrgs = await sfdx.org.list({ _quiet: true });
-    const { defaultOrg } = normalizeOrgInfo(sfdxOrgs);
-    const sfdxCommand = defaultOrg.isScratchOrg ? pushCmd : deployCmd;
-
-    let argFiles;
-    const sfdxArgs = [sfdxCommand];
-    if (!defaultOrg.isScratchOrg) {
-      argFiles = Array.from(deployFiles)
-        .map((file: string): string => {
-          // let pathSep = file.split(path.sep);
-          // if (pathSep.includes('staticresources')) {
-          //   return './force-app/main/default/staticresources/dist';
-          // } else {
-          //   return path.join(...file.split(path.sep));
-          // }
-          return path.join(...file.split(path.sep));
-        })
-        .join(',');
-      sfdxArgs.push(`-p ${argFiles}`);
-    }
-    // console.log({ argFiles });
-    // await execCmd('sfdx', sfdxArgs);
-    const myRes = await sfdx.source.deploy({
-      _quiet: false,
-      sourcepath: argFiles,
-    });
-    console.log({ myRes });
-    deployFiles.clear();
-  }
-
-  apply(compiler) {
-    // create watcher for sfdx project
-    const watcher = watch(
-      path.resolve(sfdxProjectPath),
-      watchOptions,
-      watchCallback
-    );
+  /**
+   *
+   * @param compiler Webpack Compiler Object
+   * Invoked from webpack tapable hooks
+   */
+  public apply(compiler: webpack.Compiler): void {
+    this.compiler = compiler;
     // on deploy event, call deploy mthod
-    deployEvent.on('sf__deploy', this.deploy);
-    // add files change add to unique set
-    watcher.on('change', (evt, name) => {
-      console.log(`watcher: onchange event => ${evt}, ${name}`);
-      deployFiles.add(name);
+    this.deployEvent.on(this.DeployEvtName, this.deploy.bind(this));
+    // register node fs watcher
+    this.registerWatcher();
+    // register webpack compiler hooks
+    this.pluginDone();
+    this.pluginWatchRun();
+    this.pluginWatchClose();
+  }
+
+  /**
+   * @description async function to deploy files modified in sfdx project
+   */
+  async deploy(): Promise<void> {
+    // get org list from sfdx
+    const sfdxOrgs = await sfdx.org.list({ _quiet: true });
+    const { defaultScratchOrg } = normalizeOrgInfo(sfdxOrgs);
+    // if scratch org push otherwise deploy modified files
+    if (!defaultScratchOrg) {
+      await this.sourceDeploy(getSourcePath(this.deployFiles));
+    } else {
+      await this.sourcePush();
+    }
+    // close watcher to end process if not in watch mode
+    if (!this.webpackWatch) this.watcher.close();
+    /* End of each deploy, clear set */
+    this.deployFiles.clear();
+  }
+
+  /**
+   * @description webpack watch mode async function invoked from webpack watch hooks to periodically deploy new modified files
+   */
+  async watchDeploy(): Promise<void> {
+    if (this.deployFiles.size > 0) {
+      this.deployEvent.emit(this.DeployEvtName);
+    }
+    if (this.closeWatcher) clearInterval(this.deployInterval);
+  }
+
+  async sourcePush() {
+    return await sfdx.source.push({
+      _quiet: false,
     });
+  }
 
-    compiler.hooks.beforeRun.tapAsync('SFDX-WATCH', (compiler, callback) => {
-      console.log('\nSFDX-Watch: before run\n');
-      callback();
+  async sourceDeploy(sourcepath: string) {
+    return await sfdx.source.deploy({
+      _quiet: false,
+      sourcepath,
     });
+  }
 
-    compiler.hooks.watchRun.tapAsync('SFDX-WATCH', (compiler, callback) => {
-      console.log('watchRun hook');
-      this.webpackWatch = true;
-      callback();
-    });
+  fileChangeHandler(event: string, filePath: string): void {
+    this.deployFiles.add(addFile(filePath));
+  }
 
-    compiler.hooks.done.tapAsync('SFDX-WATCH', (stats, callback) => {
-      console.log('\nSFDX-Watch: done \n\n');
-
-      if (!this.webpackWatch) {
-        setTimeout(() => {
-          watcher.close();
-          deployEvent.emit('sf__deploy');
-        }, DELAY + 50);
-      } else {
-        console.log(`we're in watch mode ya'll`);
-        setInterval(this.watchDeploy, 12000);
+  private registerWatcher(): void {
+    // create watcher for sfdx project
+    this.watcher = watch(
+      path.resolve(this.projectPath),
+      {
+        recursive: true,
+        delay: 0,
+        filter: f => !/node_modules/.test(f),
+      },
+      (evt, name) => {
+        if (this.log) console.log(`${evt} ${name}`);
       }
+    );
+    // add files change add to unique set
+    this.watcher.on('change', this.fileChangeHandler.bind(this));
+  }
 
-      callback();
+  private pluginDone() {
+    this.compiler.hooks.done.tapAsync(
+      this.PLUGIN_NAME,
+      (stats: webpack.Stats, cb: Function) => {
+        if (!this.webpackWatch) {
+          setTimeout(() => {
+            this.deployEvent.emit(this.DeployEvtName);
+          }, this.delay);
+        } else {
+          this.deployInterval = setInterval(this.watchDeploy.bind(this), 12000);
+        }
+        cb();
+      }
+    );
+  }
+
+  private pluginWatchRun() {
+    this.compiler.hooks.watchRun.tapAsync(this.PLUGIN_NAME, (compiler, cb) => {
+      this.webpackWatch = true;
+      cb();
     });
+  }
 
-    compiler.hooks.watchClose.tap('SFDX-WATCH', () => {
-      console.log('watch Close');
+  private pluginWatchClose() {
+    this.compiler.hooks.watchClose.tap(this.PLUGIN_NAME, () => {
+      this.closeWatcher = true;
     });
   }
 }
