@@ -11,6 +11,15 @@
   },
   "author": "Michael Yocca @mjyocca",
   "license": "MIT",
+  "repository": "https://github.com/mjyocca/sfdx-deploy-webpack-plugin",
+  "bugs": "https://github.com/mjyocca/sfdx-deploy-webpack-plugin/issues",
+  "keywords": [
+    "sfdx",
+    "deploy",
+    "salesforce",
+    "webpack",
+    "plugin"
+  ],
   "scripts": {
     "build": "tsc && node ./build-scripts/build.js",
     "clean": "",
