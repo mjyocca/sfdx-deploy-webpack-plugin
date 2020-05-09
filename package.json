@@ -1,6 +1,6 @@
 {
   "name": "sfdx-deploy-webpack-plugin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Webpack plugin that deploys your local SFDX project to your Salesforce Evironment.",
   "main": "./build/index.js",
   "types": "build/index.d.ts",
