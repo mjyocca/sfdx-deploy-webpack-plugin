@@ -3,8 +3,9 @@ import { EventEmitter } from 'events';
 import * as webpack from 'webpack';
 import watch from 'node-watch';
 import sfdx from 'sfdx-node/parallel';
-import { normalizeOrgInfo, getSourcePath, addFile } from './helper';
-import { DeployOptions } from './types/plugin.types';
+import debounce from 'lodash.debounce';
+import { getSourcePath, addFile, mergeDeployArgs } from './helper';
+import { PluginOptions, DeployArgs } from './types/plugin.types';
 
 export default class SfdxDeployPlugin {
   private readonly PLUGIN_NAME = 'SfdxDeployPlugin';
@@ -13,21 +14,45 @@ export default class SfdxDeployPlugin {
   private watcher: any; /* ImprovedFSWatcher */
   private deployFiles = new Set<string>();
   private deployEvent = new EventEmitter();
-  private deployInterval: NodeJS.Timer;
+  private webpackDone = false;
   private webpackWatch = false;
   private closeWatcher = false;
+  private watchFs = true;
+
+  private defaultDeployArgs: DeployArgs = {
+    _quiet: false,
+  };
 
   /* Public */
-  options: DeployOptions;
-  projectPath = './force-app/main/default/';
-  delay = 0;
+  options: PluginOptions;
+  deployArgs: DeployArgs;
+  projectPath: string;
+  delay: number;
   log = false;
 
-  // sfdxArgs?: DeployOptions['SfdxArgs'];
+  /**
+   *
+   * @param options Webpack Options passed into Plugiin instance
+   */
+  constructor(options?: PluginOptions) {
+    this.options = options || ({} as PluginOptions);
+    this.setConfig();
+  }
 
-  // for v1 going to ignore options
-  constructor(options?: DeployOptions) {
-    this.options = options || ({} as DeployOptions);
+  setConfig() {
+    const {
+      projectPath = './force-app/main/default/',
+      delay = 250,
+      deployArgs,
+    } = this.options;
+    if (deployArgs) {
+      this.deployArgs = deployArgs;
+      if (deployArgs.sourcepath || deployArgs.manifest || deployArgs.metadata) {
+        this.watchFs = false;
+      }
+    }
+    this.projectPath = projectPath;
+    this.delay = delay;
   }
 
   /**
@@ -37,10 +62,14 @@ export default class SfdxDeployPlugin {
    */
   public apply(compiler: webpack.Compiler): void {
     this.compiler = compiler;
-    // on deploy event, call deploy mthod
-    this.deployEvent.on(this.DeployEvtName, this.deploy.bind(this));
-    // register node fs watcher
-    this.registerWatcher();
+    // on deploy event, call deploy method w/ debounce
+    this.deployEvent.on(
+      this.DeployEvtName,
+      debounce(this.deploy.bind(this), this.delay)
+    );
+    // register node fs watcher if in watch mode
+    if (this.watchFs) this.registerWatcher();
+
     // register webpack compiler hooks
     this.pluginDone();
     this.pluginWatchRun();
@@ -51,46 +80,50 @@ export default class SfdxDeployPlugin {
    * @description async function to deploy files modified in sfdx project
    */
   async deploy(): Promise<void> {
-    // get org list from sfdx
-    const sfdxOrgs = await sfdx.org.list({ _quiet: true });
-    const { defaultScratchOrg } = normalizeOrgInfo(sfdxOrgs);
-    // if scratch org push otherwise deploy modified files
-    if (!defaultScratchOrg) {
+    try {
+      // check if webpack has completed and if not return
+      if (!this.webpackDone) {
+        return;
+      }
+      /* Deploy source to org */
       await this.sourceDeploy(getSourcePath(this.deployFiles));
-    } else {
-      await this.sourcePush();
+      // close watcher to end process if not in watch mode
+      if (!this.webpackWatch && this.watchFs) {
+        this.watcher.close();
+      }
+      /* End of each deploy, clear set */
+      this.deployFiles.clear();
+    } catch (err) {
+      console.error(`${this.PLUGIN_NAME} had an error: ${err}`);
     }
-    // close watcher to end process if not in watch mode
-    if (!this.webpackWatch) this.watcher.close();
-    /* End of each deploy, clear set */
-    this.deployFiles.clear();
   }
 
   /**
-   * @description webpack watch mode async function invoked from webpack watch hooks to periodically deploy new modified files
+   *
+   * @param sourcepath
    */
-  async watchDeploy(): Promise<void> {
-    if (this.deployFiles.size > 0) {
-      this.deployEvent.emit(this.DeployEvtName);
-    }
-    if (this.closeWatcher) clearInterval(this.deployInterval);
-  }
-
-  async sourcePush() {
-    return await sfdx.source.push({
-      _quiet: false,
-    });
-  }
-
   async sourceDeploy(sourcepath: string) {
-    return await sfdx.source.deploy({
-      _quiet: false,
+    this.defaultDeployArgs = {
+      ...this.defaultDeployArgs,
       sourcepath,
-    });
+    };
+    const sourceDeployArgs = mergeDeployArgs(
+      this.defaultDeployArgs,
+      this.deployArgs
+    );
+    return await sfdx.source.deploy(sourceDeployArgs);
   }
 
-  fileChangeHandler(event: string, filePath: string): void {
+  /**
+   *
+   * @param event Node-Watch event
+   * @param filePath Node-Watch filename
+   */
+  private fileChangeHandler(event: string, filePath: string): void {
+    // add file to unique set
     this.deployFiles.add(addFile(filePath));
+    // emit deploy evt that will be debounced
+    this.deployEvent.emit(this.DeployEvtName);
   }
 
   private registerWatcher(): void {
@@ -114,13 +147,8 @@ export default class SfdxDeployPlugin {
     this.compiler.hooks.done.tapAsync(
       this.PLUGIN_NAME,
       (stats: webpack.Stats, cb: Function) => {
-        if (!this.webpackWatch) {
-          setTimeout(() => {
-            this.deployEvent.emit(this.DeployEvtName);
-          }, this.delay);
-        } else {
-          this.deployInterval = setInterval(this.watchDeploy.bind(this), 12000);
-        }
+        this.webpackDone = true;
+        this.deployEvent.emit(this.DeployEvtName);
         cb();
       }
     );
