@@ -1,7 +1,7 @@
 import * as path from 'path';
-// import * as fs from 'fs';
 import * as os from 'os';
 import { OrgList, OrgInfo, OrgInfoResult, OrgType } from './types/sfdx.types';
+import { DeployArgs } from './types/plugin.types';
 
 const platform = os.platform();
 
@@ -55,12 +55,39 @@ export const normalizeOrgInfo = (sfdxOrgs: OrgList): OrgInfoResult => {
   };
 };
 
+export const mergeDeployArgs = (
+  defaultArgs: DeployArgs,
+  deployArgs?: DeployArgs
+) => {
+  let sourceDeployArgs: DeployArgs = {};
+  const { _quiet, sourcepath } = defaultArgs;
+  const { sourcepath: sPath, manifest, metadata } = deployArgs;
+  if (sPath || manifest || metadata) {
+    sourceDeployArgs = {
+      ...deployArgs,
+      _quiet,
+    };
+  } else {
+    sourceDeployArgs = {
+      ...deployArgs,
+      _quiet,
+      sourcepath,
+    };
+  }
+  return sourceDeployArgs;
+};
+
 export const addFile = (fileString): string => {
   const fileChunks = fileString.split(path.sep);
   if (fileChunks.includes('staticresources')) {
     return fileChunks
       .slice(0, fileChunks.indexOf('staticresources') + 2)
       .join(path.sep);
+  } else if (
+    fileString.endsWith('.eslintrc.json') ||
+    fileString.endsWith('jsconfig.json')
+  ) {
+    return '';
   } else {
     return fileString;
   }
@@ -68,14 +95,9 @@ export const addFile = (fileString): string => {
 
 export const getSourcePath = (files): string => {
   return Array.from(files)
-    .map((file: string): string => {
-      let filePath = '';
-      if (platform === 'win32') {
-        filePath = path.join(...file.split(path.sep));
-      } else {
-        filePath = file;
-      }
-      return filePath;
-    })
-    .join(', ');
+    .filter(file => file && file !== '')
+    .map((file: string): string =>
+      platform === 'win32' ? path.join(...file.split(path.sep)) : file
+    )
+    .reduce((prev, curr, idx) => (idx === 0 ? curr : `${prev}, ${curr}`), '');
 };

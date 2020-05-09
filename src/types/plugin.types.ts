@@ -16,7 +16,7 @@
  *
  */
 
-export interface DeployOptions {
+export interface PluginOptions {
   /**
    * File Path to your sfdx project to watch file system changes
    * Default: `./force-app/main/default/`
@@ -25,32 +25,24 @@ export interface DeployOptions {
   /**
    * [RegExp] | function(resource)
    */
-  filter?: Function | RegExp;
+  // filter?: Function | RegExp;
   /**
    * Delay in ms to deploy after webpack's compiler done hook is emitted.
    * Useful for when other processes modify files in your sfdx project and to capture those
    */
   delay?: number;
   /**
-   *
+   * Optional sfdx command arguments
    */
-  SfdxArgs?: SfdxArgs;
+  deployArgs?: DeployArgs;
   /**
-   * Options only applicable when webpack is in --watch mode.
+   * ß
+   */
+  // pushArgs?: any;
+  /**
    * Set to {false} to not run during webpack watch mode
    */
-  webpackWatch?: WatchModeOptions | boolean;
-}
-
-/**
- * Options only applicable when webpack is in --watch mode
- */
-interface WatchModeOptions {
-  /**
-   * Timer in ms to deploy local fs changes or passed in files/arguments to your default or specified org
-   * (Default) 15000
-   */
-  IntervalDelay: number;
+  webpackWatch?: boolean;
 }
 
 /**
@@ -58,38 +50,52 @@ interface WatchModeOptions {
  *
  * SFDX Parameters More Info Here: https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference_force_source.htm
  */
-export interface SfdxArgs {
+export interface DeployArgs {
   /**
-   * {CUSTOM}
-   * Indicates if your specified org is source-tracked. Currently Scratch orgs and developer pro sandboxes (beta) are source-tracked
-   * If true, the plugin will execute `source:push` but default to `source:deploy`
-   */
-  sourceTracked?: boolean;
-  /**
+   * (Optional)
    * A username or alias for the target org. Overrides the default target org.
+   *
+   * Type: string
    */
   targetusername?: string;
   /**
+   * (Optional)
    * Override the API version used for API requests made by this command.
+   *
+   * Type:
    */
   apiversion?: string;
   /**
+   * (Optional)
    * A comma-separated list of names of metadata components to deploy to the org.
+   *
+   * If you specify this parameter, don’t specify {sourcepath} or {manifest}.
+   *
+   * Type: array
    */
-  metadata?: string;
+  metadata?: string[];
   /**
-   * (Attention)
-   * This is set automatically for non-scratch orgs(source-tracked). If you wish to deploy files other than ones modified during webpack compilation. Manually pass in this argument.
+   * (Optional)
+   * (Attention) This is set automatically. If you wish to deploy entire project manually pass in this argument pointing to the root of your project OR path to your {manifest}
    *
    * A comma-separated list of paths to the local source files to deploy. The supplied paths can be to a single file (in which
    * case the operation is applied to only one file) or to a folder (in which case the operation is applied to all metadata types
    * in the directory and its sub-directories).
+   *
    * If you specify this parameter, don’t specify {manifest} or {metadata}.
+   *
+   * Type: array
    */
-  sourcepath?: string;
+  sourcepath?: string | string[];
   /**
+   * (Optional)
    * The complete path for the manifest (package.xml) file that specifies the components to deploy. All child components are included.
+   *
    * If you specify this parameter, don’t specify {metadata} or {sourcepath}.
+   *
+   * Type: filepath
    */
   manifest?: string;
+
+  _quiet?: boolean;
 }
