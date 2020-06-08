@@ -60,8 +60,8 @@ export const mergeDeployArgs = (
   deployArgs?: DeployArgs
 ) => {
   let sourceDeployArgs: DeployArgs = {};
-  const { _quiet, sourcepath } = defaultArgs;
-  const { sourcepath: sPath, manifest, metadata } = deployArgs;
+  const { _quiet, sourcepath } = defaultArgs || {};
+  const { sourcepath: sPath, manifest, metadata } = deployArgs || {};
   if (sPath || manifest || metadata) {
     sourceDeployArgs = {
       ...deployArgs,
