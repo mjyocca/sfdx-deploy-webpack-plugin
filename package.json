@@ -32,7 +32,7 @@
   "dependencies": {
     "lodash.debounce": "^4.0.8",
     "node-watch": "^0.6.3",
-    "sfdx-node": "^2.1.0"
+    "sfdx-node": "^3.7.0"
   },
   "peerDependencies": {
     "webpack": "^4.0.0"
